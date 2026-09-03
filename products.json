@@ -1,0 +1,86 @@
+[
+  {
+    "code": "40765",
+    "offer_id": "LP-40765",
+    "name": "Гибридный инвертор 8 кВт, 48 В, 160 А, 2 MPPT, LP LPW-8KW1-160A-GDE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "37760",
+    "offer_id": "LP-37760",
+    "name": "Гибридный инвертор 6 кВт, 48 В, 2 MPPT, LP LPW-GY-6000VADE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "11382",
+    "offer_id": "LP-11382",
+    "name": "Сетевой трехфазный инвертор 30 кВт, IP65, 2 MPPT, LogicPower LPM-SIWV-30kWDE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "40783",
+    "offer_id": "LP-40783",
+    "name": "Гибридный трехфазный инвертор 30 кВт, 3 MPPT, DEYE for LP SUN-30K-SG02HP3-EU-AM3DE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "40782",
+    "offer_id": "LP-40782",
+    "name": "Гибридный трехфазный инвертор 20 кВт, 48 В, DEYE for LP SUN-20K-SG05LP3-EU-SM2DE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "40781",
+    "offer_id": "LP-40781",
+    "name": "Гибридный трехфазный инвертор 15 кВт, 48 В, DEYE for LP SUN-15K-SG05LP3-EU-SM2DE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "30381",
+    "offer_id": "LP-30381",
+    "name": "Гибридный трехфазный HV инвертор 20 кВт, DEYE for LP SUN-20K-SG01HP3-EU-AM2DE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "22793",
+    "offer_id": "LP-22793",
+    "name": "Гибридный трехфазный инвертор 12 кВт, 48 В, DEYE for LP SUN-12K-SG04LP3-EUDE Wi-Fi",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "40766",
+    "offer_id": "LP-40766",
+    "name": "Гибридный инвертор 10 кВт, 48 В, 200 А, 2 MPPT, LP LPW-10KW1-200A-GDE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "40764",
+    "offer_id": "LP-40764",
+    "name": "Гибридный инвертор 6 кВт, 48 В, 120 А, 2 MPPT, LP LPW-6KW1-GDE Wi-Fi",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "39929",
+    "offer_id": "LP-39929",
+    "name": "Гибридный трехфазный инвертор 15 кВт, 2 MPPT, Megarevo for LP R15KH3DE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  },
+  {
+    "code": "38568",
+    "offer_id": "LP-38568",
+    "name": "Сетевой трехфазный инвертор 330 кВт, IP66, Huawei SUN2000-330KTL-H1DE",
+    "category_id": "910001",
+    "portal_category_id": "5140401"
+  }
+]
