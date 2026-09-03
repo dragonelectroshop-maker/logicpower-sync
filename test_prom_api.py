@@ -7,7 +7,9 @@ token = os.environ.get("PROM_API_TOKEN")
 if not token:
     raise SystemExit("PROM_API_TOKEN is not set")
 
-url = "https://my.prom.ua/api/v1/products/list?limit=1"
+external_id = "LP-40765"
+
+url = f"https://my.prom.ua/api/v1/products/by_external_id/{external_id}"
 
 request = urllib.request.Request(
     url,
@@ -21,8 +23,6 @@ request = urllib.request.Request(
 with urllib.request.urlopen(request, timeout=30) as response:
     data = json.loads(response.read().decode("utf-8"))
 
-print("PROM API CONNECTION: OK")
+print("PROM PRODUCT LOOKUP: OK")
 print("HTTP STATUS: 200")
-
-if isinstance(data, dict):
-    print("Response fields:", ", ".join(data.keys()))
+print(json.dumps(data, ensure_ascii=False, indent=2))
