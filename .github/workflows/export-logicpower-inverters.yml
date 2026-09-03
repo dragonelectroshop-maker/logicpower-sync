@@ -1,0 +1,80 @@
+name: Export LogicPower Inverters
+
+on:
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Export inverter category from LogicPower
+        env:
+          LOGICPOWER_API_KEY: ${{ secrets.LOGICPOWER_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import json
+          import urllib.parse
+          import urllib.request
+
+          API_KEY = os.environ["LOGICPOWER_API_KEY"]
+
+          CATEGORY_ID = "53130230-5dd1-4048-98fd-f023fd461fbc"
+
+          params = urllib.parse.urlencode({
+              "pageSize": 100,
+              "pageNum": 1,
+              "categoryId": CATEGORY_ID,
+          })
+
+          url = (
+              "https://api.b2b.logicpower.ua"
+              "/external/catalog/product/list/all?"
+              + params
+          )
+
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "X-Api-Key": API_KEY,
+                  "Accept": "application/json",
+              },
+              method="GET",
+          )
+
+          with urllib.request.urlopen(request, timeout=120) as response:
+              data = json.loads(
+                  response.read().decode("utf-8")
+              )
+
+          if not data.get("status") or data.get("code") != 200:
+              raise RuntimeError(
+                  f"LogicPower API error: {data}"
+              )
+
+          items = data.get("data", {}).get("items", [])
+
+          print("Products received:", len(items))
+
+          with open(
+              "logicpower-inverters-11257.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+              json.dump(
+                  data,
+                  f,
+                  ensure_ascii=False,
+                  indent=2,
+              )
+
+          print("EXPORT: OK")
+          PY
+
+      - name: Save exported JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: logicpower-inverters-11257
+          path: logicpower-inverters-11257.json
+          retention-days: 7
