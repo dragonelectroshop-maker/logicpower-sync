@@ -1,4 +1,4 @@
-name: Export LogicPower Inverters
+name: Export Recommended LogicPower Products In Stock
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Export inverter category from LogicPower
+      - name: Export recommended in-stock products
         env:
           LOGICPOWER_API_KEY: ${{ secrets.LOGICPOWER_API_KEY }}
         run: |
@@ -20,61 +20,306 @@ jobs:
 
           API_KEY = os.environ["LOGICPOWER_API_KEY"]
 
-          CATEGORY_ID = "53130230-5dd1-4048-98fd-f023fd461fbc"
+          BASE_URL = "https://api.b2b.logicpower.ua"
 
-          params = urllib.parse.urlencode({
-              "pageSize": 100,
-              "pageNum": 1,
-              "categoryId": CATEGORY_ID,
-          })
-
-          url = (
-              "https://api.b2b.logicpower.ua"
-              "/external/catalog/product/list/all?"
-              + params
+          PRODUCT_URL = (
+              BASE_URL +
+              "/external/catalog/product/list/all"
           )
 
-          request = urllib.request.Request(
-              url,
-              headers={
-                  "X-Api-Key": API_KEY,
-                  "Accept": "application/json",
-              },
-              method="GET",
+          CATEGORY_URL = (
+              BASE_URL +
+              "/external/catalog/category/list/tree"
           )
 
-          with urllib.request.urlopen(request, timeout=120) as response:
-              data = json.loads(
-                  response.read().decode("utf-8")
+          # ============================================================
+          # КАТЕГОРИИ, КОТОРЫЕ БЕРЕМ В РАБОТУ ДЛЯ DRAGONELECTRO
+          # ============================================================
+
+          SELECTED_CATEGORIES = {
+
+              # --------------------------------------------------------
+              # АЛЬТЕРНАТИВНАЯ ЭНЕРГЕТИКА
+              # --------------------------------------------------------
+              "12876": "MPPT контроллеры",
+              "11259": "Комплекты СЭС",
+              "11257": "Солнечные инверторы",
+              "11258": "Солнечные панели",
+
+              # --------------------------------------------------------
+              # СИСТЕМЫ БЕЗОПАСНОСТИ
+              # --------------------------------------------------------
+              "12281": "Видеорегистраторы",
+              "12286": "Камеры видеонаблюдения",
+              "12289": "Комплекты видеонаблюдения",
+              "12355": "Домофоны",
+              "12295": "Охранно-пожарная сигнализация",
+
+              # СКУД
+              "12351": "Замки",
+              "12358": "Ключи СКУД",
+              "12353": "Кнопки СКУД",
+              "13045": "Комплекты СКУД",
+              "12350": "Контроллеры СКУД",
+              "12352": "Считыватели СКУД",
+
+              # --------------------------------------------------------
+              # ЭЛЕКТРООБОРУДОВАНИЕ
+              # --------------------------------------------------------
+              "13074": "Высоковольтные аккумуляторные батареи",
+              "12329": "Источники бесперебойного питания",
+              "12330": "Комплекты для резервного питания",
+              "12946": "Портативные зарядные станции",
+              "13001": "Системы резервного питания",
+              "12335": "Стабилизаторы напряжения",
+          }
+
+
+          def api_get(url, params=None):
+              if params:
+                  url += "?" + urllib.parse.urlencode(params)
+
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "X-Api-Key": API_KEY,
+                      "Accept": "application/json",
+                  },
+                  method="GET",
               )
 
-          if not data.get("status") or data.get("code") != 200:
+              with urllib.request.urlopen(
+                  request,
+                  timeout=120
+              ) as response:
+                  data = json.loads(
+                      response.read().decode("utf-8")
+                  )
+
+              if (
+                  not data.get("status")
+                  or data.get("code") != 200
+              ):
+                  raise RuntimeError(
+                      f"LogicPower API error: {data}"
+                  )
+
+              return data
+
+
+          # ============================================================
+          # ПОЛУЧАЕМ ДЕРЕВО КАТЕГОРИЙ
+          # ============================================================
+
+          print("Reading LogicPower category tree...")
+
+          tree_response = api_get(CATEGORY_URL)
+          tree = tree_response.get("data", [])
+
+          categories_by_code = {}
+
+
+          def walk_categories(nodes):
+              for node in nodes:
+                  code = str(node.get("code", ""))
+
+                  if code:
+                      categories_by_code[code] = node
+
+                  children = node.get("children", [])
+
+                  if children:
+                      walk_categories(children)
+
+
+          walk_categories(tree)
+
+          print(
+              "Categories found in tree:",
+              len(categories_by_code)
+          )
+
+
+          # ============================================================
+          # ПРОВЕРЯЕМ, ЧТО ВСЕ НУЖНЫЕ КАТЕГОРИИ ЕСТЬ
+          # ============================================================
+
+          missing_categories = []
+
+          for code, name in SELECTED_CATEGORIES.items():
+              if code not in categories_by_code:
+                  missing_categories.append(
+                      f"{code} - {name}"
+                  )
+
+          if missing_categories:
               raise RuntimeError(
-                  f"LogicPower API error: {data}"
+                  "Categories not found: " +
+                  ", ".join(missing_categories)
               )
 
-          items = data.get("data", {}).get("items", [])
 
-          print("Products received:", len(items))
+          # ============================================================
+          # ВЫГРУЖАЕМ ТОВАРЫ
+          # ============================================================
+
+          all_in_stock = {}
+
+          report = []
+
+          print("")
+          print("========================================")
+          print("RECOMMENDED LOGICPOWER CATEGORIES")
+          print("========================================")
+
+
+          for category_code, category_name in (
+              SELECTED_CATEGORIES.items()
+          ):
+
+              category = categories_by_code[
+                  category_code
+              ]
+
+              category_id = category["id"]
+
+              page_num = 1
+              total_items = 0
+              in_stock_count = 0
+
+              while True:
+
+                  data = api_get(
+                      PRODUCT_URL,
+                      {
+                          "pageSize": 100,
+                          "pageNum": page_num,
+                          "categoryId": category_id,
+                      }
+                  )["data"]
+
+                  items = data.get("items", [])
+
+                  total_items = int(
+                      data.get("totalItems", 0)
+                  )
+
+                  for item in items:
+
+                      # Берем ТОЛЬКО реально имеющиеся
+                      if item.get("status") != "inStock":
+                          continue
+
+                      product_code = str(
+                          item.get("code", "")
+                      )
+
+                      if not product_code:
+                          continue
+
+                      in_stock_count += 1
+
+                      # Удаляем дубли между категориями
+                      if product_code not in all_in_stock:
+
+                          # Добавляем служебную информацию,
+                          # откуда пришел товар.
+                          item[
+                              "_export_category_code"
+                          ] = category_code
+
+                          item[
+                              "_export_category_name"
+                          ] = category_name
+
+                          all_in_stock[
+                              product_code
+                          ] = item
+
+                  if not items:
+                      break
+
+                  if page_num * 100 >= total_items:
+                      break
+
+                  page_num += 1
+
+
+              report.append({
+                  "categoryCode": category_code,
+                  "categoryName": category_name,
+                  "totalProducts": total_items,
+                  "inStockProducts": in_stock_count,
+              })
+
+              print(
+                  f"{category_code} | "
+                  f"{category_name}: "
+                  f"{in_stock_count} inStock "
+                  f"из {total_items}"
+              )
+
+
+          # ============================================================
+          # ФОРМИРУЕМ ОДИН ОБЩИЙ ФАЙЛ
+          # ============================================================
+
+          products = list(
+              all_in_stock.values()
+          )
+
+          products.sort(
+              key=lambda x: str(
+                  x.get("code", "")
+              )
+          )
+
+          result = {
+              "status": True,
+              "code": 200,
+              "selection": (
+                  "Recommended DragonElectro categories, "
+                  "status=inStock only"
+              ),
+              "categoriesReport": report,
+              "data": {
+                  "items": products,
+                  "totalItems": len(products),
+              }
+          }
+
+
+          filename = (
+              "logicpower-recommended-instock.json"
+          )
 
           with open(
-              "logicpower-inverters-11257.json",
+              filename,
               "w",
               encoding="utf-8"
           ) as f:
               json.dump(
-                  data,
+                  result,
                   f,
                   ensure_ascii=False,
                   indent=2,
               )
 
+
+          print("")
+          print("========================================")
+          print(
+              "TOTAL UNIQUE IN-STOCK PRODUCTS:",
+              len(products)
+          )
+          print("========================================")
           print("EXPORT: OK")
+
           PY
 
       - name: Save exported JSON
         uses: actions/upload-artifact@v4
         with:
-          name: logicpower-inverters-11257
-          path: logicpower-inverters-11257.json
+          name: logicpower-recommended-instock
+          path: logicpower-recommended-instock.json
           retention-days: 7
