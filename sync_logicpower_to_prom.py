@@ -31,24 +31,20 @@ PROM_EDIT_URL = (
 
 PAGE_SIZE = 500
 
+
 # ============================================================
 # ЗАЩИТА ЦЕН
 # ============================================================
 
-# Ниже этой цены автоматическая синхронизация
-# цену в Prom менять не будет.
 MIN_SAFE_PRICE = 1000.0
 
-# Максимально допустимое изменение цены
-# относительно текущей цены Prom за один запуск.
-#
-# 0.50 = максимум +/- 50%.
+# Максимальное изменение цены за один цикл:
+# +/- 50% относительно текущей цены Prom.
 MAX_PRICE_CHANGE = 0.50
 
 
 # ============================================================
-# 170 ТОВАРОВ:
-# 12 старых + 158 новых
+# 170 ТОВАРОВ
 # ============================================================
 
 TRACKED_CODES = {
@@ -226,7 +222,7 @@ TRACKED_CODES = {
 
 
 # ============================================================
-# ОБЩИЕ HTTP-ФУНКЦИИ
+# HTTP
 # ============================================================
 
 def prom_headers():
@@ -234,12 +230,13 @@ def prom_headers():
         "Authorization": f"Bearer {PROM_API_TOKEN}",
         "Accept": "application/json",
         "User-Agent": (
-            "DragonElectro-LogicPower-Prom-Sync/3.0"
+            "DragonElectro-LogicPower-Prom-Sync/4.0"
         ),
     }
 
 
 def logicpower_page(page_num):
+
     params = urllib.parse.urlencode({
         "pageSize": PAGE_SIZE,
         "pageNum": page_num,
@@ -251,7 +248,7 @@ def logicpower_page(page_num):
             "X-Api-Key": LOGICPOWER_API_KEY,
             "Accept": "application/json",
             "User-Agent": (
-                "DragonElectro-LogicPower-Prom-Sync/3.0"
+                "DragonElectro-LogicPower-Prom-Sync/4.0"
             ),
         },
         method="GET",
@@ -261,6 +258,7 @@ def logicpower_page(page_num):
         request,
         timeout=120
     ) as response:
+
         payload = json.loads(
             response.read().decode("utf-8")
         )
@@ -277,10 +275,11 @@ def logicpower_page(page_num):
 
 
 # ============================================================
-# РРЦ LOGICPOWER - 1 ГРН
+# РРЦ - 1 ГРН
 # ============================================================
 
 def recommended_retail_minus_one(item):
+
     for price in item.get("prices", []):
 
         if price.get("type") != "recommendedRetail":
@@ -304,18 +303,16 @@ def recommended_retail_minus_one(item):
         if not math.isfinite(amount):
             return None
 
-        value = round(
+        return round(
             amount - 1.0,
             2
         )
-
-        return value
 
     return None
 
 
 # ============================================================
-# ПОЛУЧАЕМ ТЕКУЩУЮ ЦЕНУ ИЗ PROM
+# ПОЛУЧАЕМ ТОВАР ИЗ PROM
 # ============================================================
 
 def prom_get_product(external_id):
@@ -341,6 +338,7 @@ def prom_get_product(external_id):
         )
 
         try:
+
             with urllib.request.urlopen(
                 request,
                 timeout=60
@@ -377,9 +375,11 @@ def prom_get_product(external_id):
                 exc.code == 429
                 or 500 <= exc.code <= 599
             ):
+
                 time.sleep(
                     attempt * 2
                 )
+
                 continue
 
             raise RuntimeError(
@@ -387,6 +387,7 @@ def prom_get_product(external_id):
             ) from exc
 
         except Exception as exc:
+
             last_error = repr(exc)
 
             time.sleep(
@@ -401,8 +402,6 @@ def prom_get_product(external_id):
 
 def extract_prom_price(payload):
 
-    # На случай разных вариантов
-    # структуры ответа API Prom.
     candidates = []
 
     if isinstance(payload, dict):
@@ -419,6 +418,7 @@ def extract_prom_price(payload):
         if isinstance(product, dict):
             candidates.append(product)
 
+
     for obj in candidates:
 
         value = obj.get("price")
@@ -426,9 +426,8 @@ def extract_prom_price(payload):
         if value is None:
             continue
 
-        # Иногда API может вернуть
-        # строковое значение.
         if isinstance(value, str):
+
             value = (
                 value
                 .replace(" ", "")
@@ -437,11 +436,13 @@ def extract_prom_price(payload):
 
         try:
             value = float(value)
+
         except (
             TypeError,
             ValueError
         ):
             continue
+
 
         if (
             math.isfinite(value)
@@ -453,11 +454,10 @@ def extract_prom_price(payload):
 
 
 # ============================================================
-# ПРОВЕРКА НОВОЙ ЦЕНЫ
+# ЗАЩИТА ЦЕНЫ
 # ============================================================
 
 def check_price(
-    external_id,
     new_price,
     current_price
 ):
@@ -467,7 +467,7 @@ def check_price(
         return (
             False,
             "LogicPower did not return "
-            "a valid recommendedRetail price"
+            "recommendedRetail"
         )
 
 
@@ -485,9 +485,8 @@ def check_price(
 
         return (
             False,
-            f"new price {new_price} UAH "
-            f"is below minimum "
-            f"{MIN_SAFE_PRICE} UAH"
+            f"new price {new_price} "
+            f"is below {MIN_SAFE_PRICE}"
         )
 
 
@@ -513,11 +512,10 @@ def check_price(
 
     if new_price < lower_limit:
 
-        drop_percent = round(
+        percent = round(
             (
                 1
-                - new_price
-                / current_price
+                - new_price / current_price
             )
             * 100,
             1
@@ -525,7 +523,7 @@ def check_price(
 
         return (
             False,
-            f"price drop {drop_percent}%: "
+            f"price drop {percent}%: "
             f"{current_price} -> "
             f"{new_price}"
         )
@@ -533,10 +531,9 @@ def check_price(
 
     if new_price > upper_limit:
 
-        increase_percent = round(
+        percent = round(
             (
-                new_price
-                / current_price
+                new_price / current_price
                 - 1
             )
             * 100,
@@ -545,38 +542,52 @@ def check_price(
 
         return (
             False,
-            f"price increase "
-            f"{increase_percent}%: "
+            f"price increase {percent}%: "
             f"{current_price} -> "
             f"{new_price}"
         )
 
 
-    return (
-        True,
-        "OK"
-    )
+    return True, "OK"
 
 
 # ============================================================
-# ОБНОВЛЯЕМ PROM
+# ОБНОВЛЕНИЕ PROM
 # ============================================================
 
 def prom_update(
     external_id,
     price,
-    presence
+    presence,
+    quantity_in_stock
 ):
 
     body = {
         "id": external_id,
+
+        # Статус наличия.
         "presence": presence,
+
+        # КЛЮЧЕВОЕ ИЗМЕНЕНИЕ.
+        #
+        # LogicPower inStock -> 1
+        # LogicPower не в наличии -> 0
+        #
+        # Реального количества поставщик
+        # нам не сообщает, поэтому ничего
+        # выдумывать не будем.
+        "quantity_in_stock": quantity_in_stock,
     }
 
-    # Если цена заблокирована защитой,
-    # поле price вообще не отправляем.
+
+    # Если защита цены её пропустила,
+    # отправляем цену.
+    #
+    # Если цена заблокирована —
+    # вообще не передаём поле price.
     if price is not None:
         body["price"] = price
+
 
     data = json.dumps(
         body,
@@ -586,6 +597,7 @@ def prom_update(
 
     last_error = None
 
+
     for attempt in range(1, 4):
 
         headers = prom_headers()
@@ -594,6 +606,7 @@ def prom_update(
             "Content-Type"
         ] = "application/json"
 
+
         request = urllib.request.Request(
             PROM_EDIT_URL,
             data=data,
@@ -601,7 +614,9 @@ def prom_update(
             method="POST",
         )
 
+
         try:
+
             with urllib.request.urlopen(
                 request,
                 timeout=60
@@ -624,6 +639,7 @@ def prom_update(
                     result
                 )
 
+
         except urllib.error.HTTPError as exc:
 
             error_text = (
@@ -639,18 +655,23 @@ def prom_update(
                 f"{error_text}"
             )
 
+
             if (
                 exc.code == 429
                 or 500 <= exc.code <= 599
             ):
+
                 time.sleep(
                     attempt * 2
                 )
+
                 continue
+
 
             raise RuntimeError(
                 last_error
             ) from exc
+
 
         except Exception as exc:
 
@@ -659,6 +680,7 @@ def prom_update(
             time.sleep(
                 attempt * 2
             )
+
 
     raise RuntimeError(
         last_error
@@ -693,10 +715,12 @@ while True:
         page_num
     )
 
+
     items = data.get(
         "items",
         []
     )
+
 
     total_items = int(
         data.get(
@@ -704,6 +728,7 @@ while True:
             0
         ) or 0
     )
+
 
     for item in items:
 
@@ -715,7 +740,10 @@ while True:
         )
 
         if code in TRACKED_CODES:
-            found[code] = item
+
+            found[
+                code
+            ] = item
 
 
     print(
@@ -734,8 +762,10 @@ while True:
     ):
         break
 
+
     if not items:
         break
+
 
     if (
         total_items
@@ -743,6 +773,7 @@ while True:
         >= total_items
     ):
         break
+
 
     page_num += 1
 
@@ -798,6 +829,7 @@ for index, code in enumerate(
     start=1
 ):
 
+
     item = found.get(code)
 
     external_id = (
@@ -805,9 +837,9 @@ for index, code in enumerate(
     )
 
 
-    # --------------------------------------------------------
-    # НАЛИЧИЕ
-    # --------------------------------------------------------
+    # ========================================================
+    # НАЛИЧИЕ + ОСТАТОК
+    # ========================================================
 
     if item is None:
 
@@ -817,7 +849,10 @@ for index, code in enumerate(
             "not_available"
         )
 
+        quantity_in_stock = 0
+
         proposed_price = None
+
 
     else:
 
@@ -828,11 +863,25 @@ for index, code in enumerate(
             )
         )
 
-        presence = (
-            "available"
-            if lp_status == "inStock"
-            else "not_available"
-        )
+
+        if lp_status == "inStock":
+
+            presence = (
+                "available"
+            )
+
+            # Поставщик подтверждает наличие,
+            # но не сообщает точный остаток.
+            quantity_in_stock = 1
+
+        else:
+
+            presence = (
+                "not_available"
+            )
+
+            quantity_in_stock = 0
+
 
         proposed_price = (
             recommended_retail_minus_one(
@@ -842,14 +891,17 @@ for index, code in enumerate(
 
 
     if presence == "available":
+
         available_count += 1
+
     else:
+
         not_available_count += 1
 
 
-    # --------------------------------------------------------
-    # ПРОВЕРЯЕМ ЦЕНУ
-    # --------------------------------------------------------
+    # ========================================================
+    # ПРОВЕРКА ЦЕНЫ
+    # ========================================================
 
     safe_price = None
 
@@ -870,15 +922,16 @@ for index, code in enumerate(
                 )
             )
 
+
             current_price = (
                 extract_prom_price(
                     prom_product
                 )
             )
 
+
             allowed, reason = (
                 check_price(
-                    external_id,
                     proposed_price,
                     current_price
                 )
@@ -895,6 +948,7 @@ for index, code in enumerate(
 
                 price_status = "OK"
 
+
             else:
 
                 price_protected_count += 1
@@ -903,14 +957,17 @@ for index, code in enumerate(
                     f"BLOCKED: {reason}"
                 )
 
+
                 warning = (
                     f"{external_id}: "
                     f"{reason}"
                 )
 
+
                 price_warnings.append(
                     warning
                 )
+
 
                 print(
                     "::warning title="
@@ -921,13 +978,13 @@ for index, code in enumerate(
 
         except Exception as exc:
 
-            # Если не смогли проверить
-            # текущую цену Prom,
-            # цену НЕ меняем.
+            # Если проверка цены не удалась,
+            # цену не трогаем.
             #
-            # Наличие при этом всё равно
-            # синхронизируем.
+            # Наличие и остаток при этом
+            # всё равно обновляем.
             price_protected_count += 1
+
 
             price_status = (
                 "BLOCKED: "
@@ -935,15 +992,18 @@ for index, code in enumerate(
                 f"{exc}"
             )
 
+
             warning = (
                 f"{external_id}: "
                 f"Prom price check failed: "
                 f"{exc}"
             )
 
+
             price_warnings.append(
                 warning
             )
+
 
             print(
                 "::warning title="
@@ -952,9 +1012,9 @@ for index, code in enumerate(
             )
 
 
-    # --------------------------------------------------------
-    # ОБНОВЛЯЕМ PROM
-    # --------------------------------------------------------
+    # ========================================================
+    # ОТПРАВЛЯЕМ В PROM
+    # ========================================================
 
     try:
 
@@ -963,8 +1023,10 @@ for index, code in enumerate(
                 external_id=external_id,
                 price=safe_price,
                 presence=presence,
+                quantity_in_stock=quantity_in_stock,
             )
         )
+
 
         updated += 1
 
@@ -980,6 +1042,7 @@ for index, code in enumerate(
             )
         )
 
+
         proposed_text = (
             "-"
             if proposed_price is None
@@ -987,6 +1050,7 @@ for index, code in enumerate(
                 proposed_price
             )
         )
+
 
         sent_text = (
             "UNCHANGED"
@@ -1005,6 +1069,7 @@ for index, code in enumerate(
             f"PromOld={current_text} | "
             f"RRP-1={proposed_text} | "
             f"PriceSent={sent_text} | "
+            f"StockSent={quantity_in_stock} | "
             f"{price_status} | "
             f"Prom={presence} | "
             f"HTTP {http_status}"
@@ -1020,6 +1085,7 @@ for index, code in enumerate(
             )
         )
 
+
         print(
             f"[{index:03d}/"
             f"{len(TRACKED_CODES)}] "
@@ -1029,13 +1095,11 @@ for index, code in enumerate(
         )
 
 
-    # Чуть снижаем нагрузку
-    # на API Prom.
     time.sleep(0.15)
 
 
 # ============================================================
-# ИТОГОВЫЙ ОТЧЕТ
+# ИТОГ
 # ============================================================
 
 print("")
@@ -1044,41 +1108,49 @@ print(
     "========================================"
 )
 
+
 print(
     f"Updated products: "
     f"{updated}/"
     f"{len(TRACKED_CODES)}"
 )
 
+
 print(
     f"Prom available: "
     f"{available_count}"
 )
+
 
 print(
     f"Prom not_available: "
     f"{not_available_count}"
 )
 
+
 print(
     f"Prices updated: "
     f"{price_updated_count}"
 )
+
 
 print(
     f"Prices protected: "
     f"{price_protected_count}"
 )
 
+
 print(
     f"Price warnings: "
     f"{len(price_warnings)}"
 )
 
+
 print(
     f"Errors: "
     f"{len(errors)}"
 )
+
 
 print(
     "========================================"
@@ -1088,17 +1160,22 @@ print(
 if price_warnings:
 
     print("")
+
     print(
         "PRICE PROTECTION DETAILS:"
     )
 
     for warning in price_warnings:
-        print(warning)
+
+        print(
+            warning
+        )
 
 
 if errors:
 
     print("")
+
     print(
         "ERROR DETAILS:"
     )
@@ -1114,4 +1191,7 @@ if errors:
 
 
 print("")
-print("SYNC: OK")
+
+print(
+    "SYNC: OK"
+)
