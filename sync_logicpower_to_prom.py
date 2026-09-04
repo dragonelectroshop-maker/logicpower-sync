@@ -57,6 +57,7 @@ TRACKED_CODES = {
 
 
 def logicpower_page(page_num):
+
     params = urllib.parse.urlencode({
         "pageSize": PAGE_SIZE,
         "pageNum": page_num,
@@ -67,7 +68,7 @@ def logicpower_page(page_num):
         headers={
             "X-Api-Key": LOGICPOWER_API_KEY,
             "Accept": "application/json",
-            "User-Agent": "DragonElectro-LogicPower-Prom-Sync/2.0",
+            "User-Agent": "DragonElectro-LogicPower-Prom-Sync/5.0",
         },
         method="GET",
     )
@@ -93,6 +94,7 @@ def logicpower_page(page_num):
 
 
 def recommended_retail_minus_one(item):
+
     for price in item.get("prices", []):
 
         if price.get("type") != "recommendedRetail":
@@ -119,23 +121,32 @@ def recommended_retail_minus_one(item):
 def prom_update(
     external_id,
     price,
-    presence
+    presence,
+    in_stock
 ):
 
     body = {
         "id": external_id,
+
+        # Наличие товара.
         "presence": presence,
+
+        # Статус "Готово к отправке".
+        "in_stock": in_stock,
     }
 
     if price is not None:
         body["price"] = price
+
 
     data = json.dumps(
         body,
         ensure_ascii=False
     ).encode("utf-8")
 
+
     last_error = None
+
 
     for attempt in range(1, 4):
 
@@ -149,7 +160,7 @@ def prom_update(
                 "Accept": "application/json",
                 "Content-Type": "application/json",
                 "User-Agent": (
-                    "DragonElectro-LogicPower-Prom-Sync/2.0"
+                    "DragonElectro-LogicPower-Prom-Sync/5.0"
                 ),
             },
             method="POST",
@@ -179,6 +190,7 @@ def prom_update(
                     result
                 )
 
+
         except urllib.error.HTTPError as exc:
 
             error_text = (
@@ -198,14 +210,18 @@ def prom_update(
                 exc.code == 429
                 or 500 <= exc.code <= 599
             ):
+
                 time.sleep(
                     attempt * 2
                 )
+
                 continue
+
 
             raise RuntimeError(
                 last_error
             ) from exc
+
 
         except Exception as exc:
 
@@ -214,6 +230,7 @@ def prom_update(
             time.sleep(
                 attempt * 2
             )
+
 
     raise RuntimeError(
         last_error
@@ -229,6 +246,7 @@ found = {}
 
 page_num = 1
 total_items = None
+
 
 print(
     f"Tracked products: "
@@ -258,6 +276,7 @@ while True:
         ) or 0
     )
 
+
     for item in items:
 
         code = str(
@@ -270,6 +289,7 @@ while True:
         if code in TRACKED_CODES:
             found[code] = item
 
+
     print(
         f"LogicPower page "
         f"{page_num}: "
@@ -279,14 +299,17 @@ while True:
         f"{len(TRACKED_CODES)}"
     )
 
+
     if (
         len(found)
         == len(TRACKED_CODES)
     ):
         break
 
+
     if not items:
         break
+
 
     if (
         total_items
@@ -294,6 +317,7 @@ while True:
         >= total_items
     ):
         break
+
 
     page_num += 1
 
@@ -352,11 +376,11 @@ for index, code in enumerate(
 
         lp_status = "missing"
 
-        presence = (
-            "not_available"
-        )
+        presence = "not_available"
+        in_stock = False
 
         price = None
+
 
     else:
 
@@ -367,11 +391,17 @@ for index, code in enumerate(
             )
         )
 
-        presence = (
-            "available"
-            if lp_status == "inStock"
-            else "not_available"
-        )
+
+        if lp_status == "inStock":
+
+            presence = "available"
+            in_stock = True
+
+        else:
+
+            presence = "not_available"
+            in_stock = False
+
 
         price = (
             recommended_retail_minus_one(
@@ -393,16 +423,20 @@ for index, code in enumerate(
                 external_id=external_id,
                 price=price,
                 presence=presence,
+                in_stock=in_stock,
             )
         )
 
+
         updated += 1
+
 
         price_text = (
             "-"
             if price is None
             else str(price)
         )
+
 
         print(
             f"[{index:03d}/"
@@ -411,6 +445,7 @@ for index, code in enumerate(
             f"LogicPower={lp_status} | "
             f"price={price_text} | "
             f"Prom={presence} | "
+            f"InStockSent={in_stock} | "
             f"HTTP {http_status}"
         )
 
@@ -423,6 +458,7 @@ for index, code in enumerate(
                 str(exc)
             )
         )
+
 
         print(
             f"[{index:03d}/"
@@ -437,7 +473,7 @@ for index, code in enumerate(
 
 
 # ============================================================
-# ОТЧЕТ
+# ОТЧЁТ
 # ============================================================
 
 print("")
@@ -446,26 +482,31 @@ print(
     "========================================"
 )
 
+
 print(
     f"Updated products: "
     f"{updated}/"
     f"{len(TRACKED_CODES)}"
 )
 
+
 print(
     f"Prom available: "
     f"{available_count}"
 )
+
 
 print(
     f"Prom not_available: "
     f"{not_available_count}"
 )
 
+
 print(
     f"Errors: "
     f"{len(errors)}"
 )
+
 
 print(
     "========================================"
