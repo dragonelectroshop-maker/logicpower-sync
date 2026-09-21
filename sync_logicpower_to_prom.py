@@ -136,7 +136,9 @@ def prom_update(external_id, price, presence):
     if price is not None:
         body["price"] = json_price(price)
 
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    # Prom expects an ARRAY of products even when only one product is edited.
+    # A single JSON object may still return HTTP 200 while applying no change.
+    data = json.dumps([body], ensure_ascii=False).encode("utf-8")
     last_error = None
 
     for attempt in range(1, MAX_PROM_ATTEMPTS + 1):
@@ -173,6 +175,50 @@ def prom_update(external_id, price, presence):
     raise RuntimeError(last_error or "Unknown Prom API error")
 
 
+def prom_get(external_id):
+    """Read the product back from Prom and return its current data."""
+    encoded_id = urllib.parse.quote(external_id, safe="")
+    url = (
+        "https://my.prom.ua/api/v1/products/by_external_id/"
+        f"{encoded_id}"
+    )
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {PROM_API_TOKEN}",
+            "Accept": "application/json",
+            "User-Agent": "DragonElectro-LogicPower-Prom-Sync/3.1",
+        },
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+
+    product = payload.get("product") or {}
+    if product.get("external_id") != external_id:
+        raise RuntimeError(
+            f"Prom verification returned wrong product: {payload}"
+        )
+    return product
+
+
+def verify_prom_presence(external_id, expected_presence):
+    """Verify the actual saved status, allowing a short propagation delay."""
+    actual_presence = None
+    for attempt in range(1, 4):
+        product = prom_get(external_id)
+        actual_presence = product.get("presence")
+        if actual_presence == expected_presence:
+            return actual_presence
+        if attempt < 3:
+            time.sleep(attempt)
+
+    raise RuntimeError(
+        f"Prom verification failed: expected {expected_presence}, "
+        f"got {actual_presence}"
+    )
+
+
 def main():
     if FORCE_ALL_NOT_AVAILABLE:
         print("EMERGENCY PAUSE: forcing all LogicPower products not_available")
@@ -189,10 +235,15 @@ def main():
                     price=None,
                     presence="not_available",
                 )
+                saved_presence = verify_prom_presence(
+                    external_id,
+                    "not_available",
+                )
                 updated += 1
                 print(
                     f"[{index:03d}/{len(TRACKED_CODES)}] {external_id} | "
-                    f"Prom=not_available | PriceSent=- | HTTP {http_status}"
+                    f"Prom={saved_presence} VERIFIED | "
+                    f"PriceSent=- | HTTP {http_status}"
                 )
             except Exception as exc:
                 errors.append((external_id, str(exc)))
