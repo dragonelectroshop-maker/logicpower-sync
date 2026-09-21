@@ -1,9 +1,16 @@
 name: Update LogicPower YML
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "generate_logicpower_sync.py"
+      - "products.json"
+      - ".github/workflows/update.yml"
   workflow_dispatch:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "17 */4 * * *"
 
 permissions:
   contents: read
@@ -20,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Generate LogicPower feed
         env:
