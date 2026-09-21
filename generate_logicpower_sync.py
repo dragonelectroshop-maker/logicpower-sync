@@ -11,6 +11,9 @@ API_PATH = "/external/catalog/product/list/all"
 PAGE_SIZE = 500
 OUT = os.path.join("public", "logicpower-sync.yml")
 
+# Temporary safety pause: keep every tracked LogicPower product unavailable.
+FORCE_ALL_NOT_AVAILABLE = True
+
 # Last known DragonElectro prices (already = LogicPower recommendedRetail - 1 UAH).
 # Used only as a safe fallback if a product temporarily disappears from the API.
 FALLBACK_PRICES = {
@@ -113,7 +116,11 @@ lines = [
 
 for code, meta in wanted.items():
     item = found.get(code)
-    is_available = bool(item and item.get("status") == "inStock")
+    is_available = (
+        False
+        if FORCE_ALL_NOT_AVAILABLE
+        else bool(item and item.get("status") == "inStock")
+    )
 
     # Valid XML: the id value is always properly closed with a quote.
     attrs = [
