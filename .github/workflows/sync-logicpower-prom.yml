@@ -1,20 +1,27 @@
 name: Sync LogicPower to Prom
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "27 * * * *"
+    - cron: "17 */4 * * *"
+  workflow_dispatch:
 
 jobs:
   sync:
+    name: sync
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Download repository
+        uses: actions/checkout@v5
 
-      - name: Sync LogicPower prices and availability to Prom
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Run LogicPower synchronization
         env:
           LOGICPOWER_API_KEY: ${{ secrets.LOGICPOWER_API_KEY }}
           PROM_API_TOKEN: ${{ secrets.PROM_API_TOKEN }}
-        run: python3 sync_logicpower_to_prom.py
+        run: python sync_logicpower_to_prom.py
