@@ -1,6 +1,12 @@
 name: Sync LogicPower to Prom
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "sync_logicpower_to_prom.py"
+      - ".github/workflows/sync-logicpower-prom.yml"
   schedule:
     - cron: "17 */4 * * *"
   workflow_dispatch:
