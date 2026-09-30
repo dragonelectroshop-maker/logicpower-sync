@@ -25,10 +25,8 @@ PAGE_SIZE = 500
 REQUEST_DELAY_SECONDS = 0.50
 MAX_PROM_ATTEMPTS = 5
 
-# Temporary safety pause. While enabled, every LogicPower product tracked by
-# this integration is forced to "not_available" on Prom. Prices are not sent,
-# so the current Dragon Electro prices remain unchanged.
-FORCE_ALL_NOT_AVAILABLE = True
+# Production mode. Mirror LogicPower stock and apply tiered DragonElectro pricing.
+FORCE_ALL_NOT_AVAILABLE = False
 
 
 # Logic Power codes used in Dragon Electro as external IDs LP-xxxxx.
