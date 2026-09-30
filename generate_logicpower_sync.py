@@ -5,17 +5,19 @@ import html
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 API_BASE = "https://api.b2b.logicpower.ua"
 API_PATH = "/external/catalog/product/list/all"
 PAGE_SIZE = 500
 OUT = os.path.join("public", "logicpower-sync.yml")
 
-# Temporary safety pause: keep every tracked LogicPower product unavailable.
-FORCE_ALL_NOT_AVAILABLE = True
+# Production mode: mirror LogicPower stock status.
+FORCE_ALL_NOT_AVAILABLE = False
 
-# Last known DragonElectro prices (already = LogicPower recommendedRetail - 1 UAH).
-# Used only as a safe fallback if a product temporarily disappears from the API.
+# Last known DragonElectro prices from the previous RRP-1 scheme.
+# If the supplier API temporarily omits a product, RRP is reconstructed as fallback+1
+# and the same tiered markup is applied, while the item remains unavailable.
 FALLBACK_PRICES = {
     "40765": 70264,
     "37760": 39380,
@@ -83,23 +85,49 @@ while True:
         break
     page += 1
 
-def retail_price(item):
+def recommended_retail(item):
     if not item:
         return None
     for p in item.get("prices", []):
-        if p.get("type") == "recommendedRetail":
-            money = p.get("money") or {}
-            if money.get("currency") == "UAH" and money.get("amount") is not None:
-                return max(0.01, float(money["amount"]) - 1.0)
+        if p.get("type") != "recommendedRetail":
+            continue
+        money = p.get("money") or {}
+        if money.get("currency") != "UAH" or money.get("amount") is None:
+            continue
+        try:
+            value = Decimal(str(money["amount"]))
+        except InvalidOperation:
+            continue
+        if value > 0:
+            return value
     return None
+
+def dragon_price(rrp):
+    """Apply DragonElectro markup to LogicPower recommended retail price.
+
+    RRP < 2500 UAH:       +25%
+    2500 <= RRP <= 4000: +15%
+    RRP > 4000 UAH:       +10%
+    """
+    if rrp < Decimal("2500"):
+        multiplier = Decimal("1.25")
+    elif rrp <= Decimal("4000"):
+        multiplier = Decimal("1.15")
+    else:
+        multiplier = Decimal("1.10")
+
+    return (rrp * multiplier).quantize(
+        Decimal("1"),
+        rounding=ROUND_HALF_UP,
+    )
 
 def esc(value):
     return html.escape(str(value), quote=True)
 
 def price_text(value):
-    if float(value).is_integer():
+    if value == value.to_integral_value():
         return str(int(value))
-    return f"{value:.2f}".rstrip("0").rstrip(".")
+    return format(value.normalize(), "f")
 
 # GitHub runners use UTC. This timestamp is informational only.
 now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
@@ -139,9 +167,10 @@ for code, meta in wanted.items():
     lines.append('        <categoryId>910001</categoryId>')
     lines.append('        <portal_category_id>5140401</portal_category_id>')
 
-    current_price = retail_price(item)
-    if current_price is None:
-        current_price = float(FALLBACK_PRICES[code])
+    rrp = recommended_retail(item)
+    if rrp is None:
+        rrp = Decimal(str(FALLBACK_PRICES[code] + 1))
+    current_price = dragon_price(rrp)
 
     lines.append(f'        <price>{price_text(current_price)}</price>')
     lines.append('        <currencyId>UAH</currencyId>')
