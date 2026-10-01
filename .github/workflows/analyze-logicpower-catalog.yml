@@ -1,0 +1,36 @@
+name: Analyze LogicPower Catalog
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "analyze_logicpower_catalog.py"
+      - ".github/workflows/analyze-logicpower-catalog.yml"
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Analyze catalog
+        env:
+          LOGICPOWER_API_KEY: ${{ secrets.LOGICPOWER_API_KEY }}
+        run: python analyze_logicpower_catalog.py
+
+      - name: Upload analysis artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: logicpower-catalog-analysis
+          path: analysis_output/
+          retention-days: 14
